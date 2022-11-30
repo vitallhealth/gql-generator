@@ -21,6 +21,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v3
+      - name: NPM Config
+        run: npm config set "@vitallhealth:registry" https://npm.pkg.github.com/ && \npm config set "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}"
       - uses: actions/setup-node@v3
         with:
           node-version: 16
