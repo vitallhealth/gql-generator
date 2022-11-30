@@ -196,5 +196,5 @@ test('excludes union types', async () => {
   const queries = require('../example/output7');
   should(queries.queries.userDetails).equal(undefined);
   queries.queries.user.indexOf('details').should.equal(-1);
-  queries.mutations.signin.indexOf('user').should.not.equal(-1);
+  queries.mutations.signup.indexOf('user').should.not.equal(-1);
 });
