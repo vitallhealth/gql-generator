@@ -1,13 +1,16 @@
 {
-    "extends": ["airbnb-base"],
-    "rules": {
-      "no-console": "off",
-      "global-require": "off",
-      "no-plusplus": "off",
-      "no-param-reassign": "warn"
-    },
-    "env": {
-      "mocha": true
-    }
+  "extends": ["airbnb-base"],
+  "rules": {
+    "no-console": "off",
+    "global-require": "off",
+    "no-plusplus": "off",
+    "no-param-reassign": "warn",
+    "arrow-parens": "off",
+    "implicit-arrow-linebreak": "off",
+    "comma-dangle": "off",
+    "operator-linebreak": "off"
+  },
+  "env": {
+    "mocha": true
+  }
 }
-  

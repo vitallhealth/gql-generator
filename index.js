@@ -13,7 +13,7 @@ function main({
   fileExtension,
   assumeValid,
   includeCrossReferences = false,
-  ignoreResolvers = [],
+  excludeUnions = false,
 } = {}) {
   let assume = false;
   if (assumeValid === 'true') {
@@ -97,12 +97,10 @@ function main({
     curDepth = 1,
     fromUnion = false
   ) => {
-    if (curName === curParentName) {
-      return '';
-    }
     const field = gqlSchema.getType(curParentType).getFields()[curName];
     const curTypeName = field.type.toJSON().replace(/[[\]!]/g, '');
     const curType = gqlSchema.getType(curTypeName);
+
     let queryStr = '';
     let childQuery = '';
 
@@ -120,6 +118,15 @@ function main({
       const childKeys = Object.keys(curType.getFields());
       childQuery = childKeys
         .filter((fieldName) => {
+          // eslint-disable-next-line no-underscore-dangle
+          const _field = gqlSchema.getType(curType).getFields()[fieldName];
+          // eslint-disable-next-line no-underscore-dangle
+          const _curTypeName = _field.type.toJSON().replace(/[[\]!]/g, '');
+          // eslint-disable-next-line no-underscore-dangle
+          const _curType = gqlSchema.getType(_curTypeName);
+          if (_curType.astNode && _curType.astNode.kind === 'UnionTypeDefinition' && excludeUnions) {
+            return false;
+          }
           /* Exclude deprecated fields */
           const fieldSchema = gqlSchema.getType(curType).getFields()[fieldName];
           return includeDeprecatedFields || !fieldSchema.deprecationReason;
@@ -221,8 +228,15 @@ function main({
       if (err.code !== 'EEXIST') throw err;
     }
     Object.keys(obj)
-      // Filter out ignored resolvers
-      .filter((type) => !ignoreResolvers.includes(type))
+      .filter((type) => {
+        const field = gqlSchema.getType(description).getFields()[type];
+        const curTypeName = field.type.toJSON().replace(/[[\]!]/g, '');
+        const curType = gqlSchema.getType(curTypeName);
+        if (curType.astNode && curType.astNode.kind === 'UnionTypeDefinition' && excludeUnions) {
+          return false;
+        }
+        return true;
+      })
       .forEach((type) => {
         const field = gqlSchema.getType(description).getFields()[type];
         /* Only process non-deprecated queries/mutations: */
@@ -290,7 +304,8 @@ if (require.main === module) {
       '-R, --includeCrossReferences',
       'Flag to include fields that have been added to parent queries already (The default is to exclude)'
     )
+    .option('--excludeUnions', 'Exclude union types from the generated result', false)
     .parse(process.argv);
 
-  return main({ ...program, fileExtension: program.ext });
+  main({ ...program, fileExtension: program.ext });
 }
