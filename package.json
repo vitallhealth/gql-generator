@@ -12,19 +12,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/timqian/gql-generator.git"
+    "url": "git+https://github.com/vitallhealth/gql-generator.git"
   },
   "keywords": [
     "graphql",
     "query",
     "generator"
   ],
-  "author": "timqian",
+  "author": "VITALL",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/timqian/gql-generator/issues"
+    "url": "https://github.com/vitallhealth/gql-generator/issues"
   },
-  "homepage": "https://github.com/timqian/gql-generator#readme",
+  "homepage": "https://github.com/vitallhealth/gql-generator#readme",
   "dependencies": {
     "commander": "^2.15.1",
     "del": "^3.0.0",
@@ -36,5 +36,8 @@
     "eslint-plugin-import": "^2.14.0",
     "mocha": "^10.1.0",
     "should": "^13.2.1"
+  },
+  "publishConfig": {
+    "@vitall:registry": "https://npm.pkg.github.com"
   }
 }

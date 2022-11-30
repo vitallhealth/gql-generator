@@ -5,7 +5,7 @@ const program = require('commander');
 const { Source, buildSchema } = require('graphql');
 const del = require('del');
 
-function main ({
+function main({
   schemaFilePath,
   destDirPath,
   depthLimit = 100,
@@ -13,6 +13,7 @@ function main ({
   fileExtension,
   assumeValid,
   includeCrossReferences = false,
+  ignoreResolvers = [],
 } = {}) {
   let assume = false;
   if (assumeValid === 'true') {
@@ -24,13 +25,16 @@ function main ({
   const gqlSchema = buildSchema(source, { assumeValidSDL: assume });
 
   del.sync(destDirPath);
-  path.resolve(destDirPath).split(path.sep).reduce((before, cur) => {
-    const pathTmp = path.join(before, cur + path.sep);
-    if (!fs.existsSync(pathTmp)) {
-      fs.mkdirSync(pathTmp);
-    }
-    return path.join(before, cur + path.sep);
-  }, '');
+  path
+    .resolve(destDirPath)
+    .split(path.sep)
+    .reduce((before, cur) => {
+      const pathTmp = path.join(before, cur + path.sep);
+      if (!fs.existsSync(pathTmp)) {
+        fs.mkdirSync(pathTmp);
+      }
+      return path.join(before, cur + path.sep);
+    }, '');
   let indexJsExportAll = '';
 
   /**
@@ -39,39 +43,38 @@ function main ({
    * @param duplicateArgCounts map for deduping argument name collisions
    * @param allArgsDict dictionary of all arguments
    */
-  const getFieldArgsDict = (
-    field,
-    duplicateArgCounts,
-    allArgsDict = {},
-  ) => field.args.reduce((o, arg) => {
-    if (arg.name in duplicateArgCounts) {
-      const index = duplicateArgCounts[arg.name] + 1;
-      duplicateArgCounts[arg.name] = index;
-      o[`${arg.name}${index}`] = arg;
-    } else if (allArgsDict[arg.name]) {
-      duplicateArgCounts[arg.name] = 1;
-      o[`${arg.name}1`] = arg;
-    } else {
-      o[arg.name] = arg;
-    }
-    return o;
-  }, {});
+  const getFieldArgsDict = (field, duplicateArgCounts, allArgsDict = {}) =>
+    field.args.reduce((o, arg) => {
+      if (arg.name in duplicateArgCounts) {
+        const index = duplicateArgCounts[arg.name] + 1;
+        duplicateArgCounts[arg.name] = index;
+        o[`${arg.name}${index}`] = arg;
+      } else if (allArgsDict[arg.name]) {
+        duplicateArgCounts[arg.name] = 1;
+        o[`${arg.name}1`] = arg;
+      } else {
+        o[arg.name] = arg;
+      }
+      return o;
+    }, {});
 
   /**
    * Generate variables string
    * @param dict dictionary of arguments
    */
-  const getArgsToVarsStr = dict => Object.entries(dict)
-    .map(([varName, arg]) => `${arg.name}: $${varName}`)
-    .join(', ');
+  const getArgsToVarsStr = (dict) =>
+    Object.entries(dict)
+      .map(([varName, arg]) => `${arg.name}: $${varName}`)
+      .join(', ');
 
   /**
    * Generate types string
    * @param dict dictionary of arguments
    */
-  const getVarsToTypesStr = dict => Object.entries(dict)
-    .map(([varName, arg]) => `$${varName}: ${arg.type}`)
-    .join(', ');
+  const getVarsToTypesStr = (dict) =>
+    Object.entries(dict)
+      .map(([varName, arg]) => `$${varName}: ${arg.type}`)
+      .join(', ');
 
   /**
    * Generate the query for the specified field
@@ -92,8 +95,11 @@ function main ({
     duplicateArgCounts = {},
     crossReferenceKeyList = [], // [`${curParentName}To${curName}Key`]
     curDepth = 1,
-    fromUnion = false,
+    fromUnion = false
   ) => {
+    if (curName === curParentName) {
+      return '';
+    }
     const field = gqlSchema.getType(curParentType).getFields()[curName];
     const curTypeName = field.type.toJSON().replace(/[[\]!]/g, '');
     const curType = gqlSchema.getType(curTypeName);
@@ -103,8 +109,8 @@ function main ({
     if (curType.getFields) {
       const crossReferenceKey = `${curParentName}To${curName}Key`;
       if (
-        (!includeCrossReferences && crossReferenceKeyList.indexOf(crossReferenceKey) !== -1)
-        || (fromUnion ? curDepth - 2 : curDepth) > depthLimit
+        (!includeCrossReferences && crossReferenceKeyList.indexOf(crossReferenceKey) !== -1) ||
+        (fromUnion ? curDepth - 2 : curDepth) > depthLimit
       ) {
         return '';
       }
@@ -118,9 +124,20 @@ function main ({
           const fieldSchema = gqlSchema.getType(curType).getFields()[fieldName];
           return includeDeprecatedFields || !fieldSchema.deprecationReason;
         })
-        .map(cur => generateQuery(cur, curType, curName, argumentsDict, duplicateArgCounts,
-          crossReferenceKeyList, curDepth + 1, fromUnion).queryStr)
-        .filter(cur => Boolean(cur))
+        .map(
+          (cur) =>
+            generateQuery(
+              cur,
+              curType,
+              curName,
+              argumentsDict,
+              duplicateArgCounts,
+              crossReferenceKeyList,
+              curDepth + 1,
+              fromUnion
+            ).queryStr
+        )
+        .filter((cur) => Boolean(cur))
         .join('\n');
     }
 
@@ -143,15 +160,26 @@ function main ({
         const indent = `${'    '.repeat(curDepth)}`;
         const fragIndent = `${'    '.repeat(curDepth + 1)}`;
         queryStr += '{\n';
-        queryStr += `${fragIndent}__typename\n`
+        queryStr += `${fragIndent}__typename\n`;
 
         for (let i = 0, len = types.length; i < len; i++) {
           const valueTypeName = types[i];
           const valueType = gqlSchema.getType(valueTypeName);
           const unionChildQuery = Object.keys(valueType.getFields())
-            .map(cur => generateQuery(cur, valueType, curName, argumentsDict, duplicateArgCounts,
-              crossReferenceKeyList, curDepth + 2, true).queryStr)
-            .filter(cur => Boolean(cur))
+            .map(
+              (cur) =>
+                generateQuery(
+                  cur,
+                  valueType,
+                  curName,
+                  argumentsDict,
+                  duplicateArgCounts,
+                  crossReferenceKeyList,
+                  curDepth + 2,
+                  true
+                ).queryStr
+            )
+            .filter((cur) => Boolean(cur))
             .join('\n');
 
           /* Exclude empty unions */
@@ -171,7 +199,7 @@ function main ({
    * @param description description of the current object
    */
   const generateFile = (obj, description) => {
-    let indexJs = 'const fs = require(\'fs\');\nconst path = require(\'path\');\n\n';
+    let indexJs = "const fs = require('fs');\nconst path = require('path');\n\n";
     let outputFolderName;
     switch (true) {
       case /Mutation.*$/.test(description):
@@ -192,32 +220,37 @@ function main ({
     } catch (err) {
       if (err.code !== 'EEXIST') throw err;
     }
-    Object.keys(obj).forEach((type) => {
-      const field = gqlSchema.getType(description).getFields()[type];
-      /* Only process non-deprecated queries/mutations: */
-      if (includeDeprecatedFields || !field.deprecationReason) {
-        const queryResult = generateQuery(type, description);
-        const varsToTypesStr = getVarsToTypesStr(queryResult.argumentsDict);
-        let query = queryResult.queryStr;
-        let queryName;
-        switch (true) {
-          case /Mutation/.test(description):
-            queryName = 'mutation';
-            break;
-          case /Query/.test(description):
-            queryName = 'query';
-            break;
-          case /Subscription/.test(description):
-            queryName = 'subscription';
-            break;
-          default:
-            break;
+    Object.keys(obj)
+      // Filter out ignored resolvers
+      .filter((type) => !ignoreResolvers.includes(type))
+      .forEach((type) => {
+        const field = gqlSchema.getType(description).getFields()[type];
+        /* Only process non-deprecated queries/mutations: */
+        if (includeDeprecatedFields || !field.deprecationReason) {
+          const queryResult = generateQuery(type, description);
+          const varsToTypesStr = getVarsToTypesStr(queryResult.argumentsDict);
+          let query = queryResult.queryStr;
+          let queryName;
+          switch (true) {
+            case /Mutation/.test(description):
+              queryName = 'mutation';
+              break;
+            case /Query/.test(description):
+              queryName = 'query';
+              break;
+            case /Subscription/.test(description):
+              queryName = 'subscription';
+              break;
+            default:
+              break;
+          }
+          query = `${queryName || description.toLowerCase()} ${type}${
+            varsToTypesStr ? `(${varsToTypesStr})` : ''
+          }{\n${query}\n}`;
+          fs.writeFileSync(path.join(writeFolder, `./${type}.${fileExtension}`), query);
+          indexJs += `module.exports.${type} = fs.readFileSync(path.join(__dirname, '${type}.${fileExtension}'), 'utf8');\n`;
         }
-        query = `${queryName || description.toLowerCase()} ${type}${varsToTypesStr ? `(${varsToTypesStr})` : ''}{\n${query}\n}`;
-        fs.writeFileSync(path.join(writeFolder, `./${type}.${fileExtension}`), query);
-        indexJs += `module.exports.${type} = fs.readFileSync(path.join(__dirname, '${type}.${fileExtension}'), 'utf8');\n`;
-      }
-    });
+      });
     fs.writeFileSync(path.join(writeFolder, 'index.js'), indexJs);
     indexJsExportAll += `module.exports.${outputFolderName} = require('./${outputFolderName}');\n`;
   };
@@ -243,7 +276,7 @@ function main ({
   fs.writeFileSync(path.join(destDirPath, 'index.js'), indexJsExportAll);
 }
 
-module.exports = main
+module.exports = main;
 
 if (require.main === module) {
   program
@@ -253,8 +286,11 @@ if (require.main === module) {
     .option('--assumeValid [value]', 'assume the SDL is valid (The default is false)')
     .option('--ext [value]', 'extension file to use', 'gql')
     .option('-C, --includeDeprecatedFields [value]', 'Flag to include deprecated fields (The default is to exclude)')
-    .option('-R, --includeCrossReferences', 'Flag to include fields that have been added to parent queries already (The default is to exclude)')
+    .option(
+      '-R, --includeCrossReferences',
+      'Flag to include fields that have been added to parent queries already (The default is to exclude)'
+    )
     .parse(process.argv);
 
-  return main({...program, fileExtension: program.ext })
+  return main({ ...program, fileExtension: program.ext });
 }
