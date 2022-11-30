@@ -1,6 +1,6 @@
 {
-  "name": "gql-generator",
-  "version": "1.0.18",
+  "name": "@vitallhealth/gql-generator",
+  "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "bin": {
@@ -38,6 +38,6 @@
     "should": "^13.2.1"
   },
   "publishConfig": {
-    "@vitallhealth:registry": "https://npm.pkg.github.com"
+    "registry": "https://npm.pkg.github.com"
   }
 }
