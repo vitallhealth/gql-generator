@@ -38,6 +38,6 @@
     "should": "^13.2.1"
   },
   "publishConfig": {
-    "@vitall:registry": "https://npm.pkg.github.com"
+    "@vitallhealth:registry": "https://npm.pkg.github.com"
   }
 }
